@@ -1,0 +1,270 @@
+Index: lint1/decl.c
+===================================================================
+RCS file: /cvs/openbsd/src/usr.bin/xlint/lint1/decl.c,v
+retrieving revision 1.26
+diff -r1.26 decl.c
+85a86,122
+>  * initialize type
+>  */
+> char	*name_type[NTSPEC] =
+>   {
+>     NULL,
+>     NULL,
+>     NULL,
+>     "_Bool",
+>     "char ",
+>     "signed char ",
+>     "unsigned char ",
+>     "short ",
+>     "unsigned short ",
+>     "int ",
+>     "unsigned int ",
+>     "long ",
+>     "unsigned long ",
+>     "long long ",
+>     "unsigned long long ",
+>     "float ",
+>     "double ",
+>     "long double ",
+>     "float _Complex ",
+>     "double _Complex ",
+>     "long double _Complex ",
+>     "float _Imaginary ",
+>     "double _Imaginary ",
+>     "long double _Imaginary ",
+>     "void ",
+>     NULL,
+>     NULL ,
+>     "enum ",
+>     "array",
+>     NULL
+>   };
+> 
+> /*
+3140a3178,3275
+> 	STRUCT_ASSIGN(curr_pos, cpos);
+> }
+> 
+> /*
+> ** probleme avec les pointeurs (table)
+> */
+> void
+> print_name_ptr(type_t *tp)
+> {
+> 	type_t	*tmp;
+> 	int	nb = 0;
+> 
+> 	for (tmp = tp; tmp && tmp->t_tspec == PTR; tmp = tmp->t_subt)
+> 	{
+> 		++nb;
+> 	}
+> 	print_type(tmp);
+> 	while (nb > 0)
+> 	  {
+> 		fprintf(fprot, "*");
+> 		--nb;
+> 	  }
+> }
+> 
+> void
+> print_name_struct(type_t *tp)
+> {
+> 	if (tp->t_u._t_str->stdef)
+> 		fprintf(fprot, "%s ", tp->t_u._t_str->stdef->s_name);
+> }
+> 
+> void
+> print_type(type_t *tp)
+> {
+> 	extern char	*name_type[NTSPEC];
+> 	char		*type;
+> 	tspec_t		t;
+> 	size_t		len;
+> 	int		i;
+> 
+> 	type = NULL;
+> 	if (!fprot)
+> 		return;
+> 	if (tp && (t = tp->t_tspec) == INT && tp->t_isenum)
+> 		t = ENUM;
+> 	if (tp && tp->t_const == 1)
+> 		fprintf(fprot, "const ");
+> 	if (t == PTR)
+> 		print_name_ptr(tp);
+> 	else if (t == STRUCT)
+> 		print_name_struct(tp);
+> 	else
+> 	{
+> 	  if (t >= 0 && t <= NTSPEC)
+> 		type = name_type[t];
+> 	  if (type != NULL)
+> 		fprintf(fprot, "%s", type);
+> 	}
+> }
+> 
+> /*
+> ** fonction faite pour cflow (utilisable?)
+> */
+> void
+> try_cflow()
+> {
+> 	sym_t	*sym;
+> 	sym_t	*sarg;
+> 	pos_t	cpos;
+> 
+> 	if (blklev != 0 || dcs->d_nxt != NULL)
+> 		norecover();
+> 
+> 	STRUCT_ASSIGN(cpos, curr_pos);
+> 
+> 	for (sym = dcs->d_dlsyms; sym != NULL; sym = sym->s_dlnxt) {
+> 		if (sym->s_blklev == -1)
+> 			continue;
+> 		if (sym->s_kind == FVFT && !sym->s_type->t_typedef) {
+> 		  /* nom des fonctions */
+> 		  fprintf(fprot, "%s() <", sym->s_name);
+> 		  print_type(sym->s_type->t_subt);
+> 		  fprintf(fprot, "%s (", sym->s_name);
+> 		  for (sarg = sym->s_type->t_u._t_args; sym->s_type->t_proto && sarg != NULL; sarg = sarg->s_dlnxt)
+> 		  {
+> 			print_type(sarg->s_type);
+> 			if (sarg->s_name != NULL && strcmp(sarg->s_name, "<unnamed>"))
+> 				fprintf(fprot, "%s", sarg->s_name); /* prototype des args */
+> 			if (sarg->s_dlnxt)
+> 				fprintf(fprot, ", ");
+> 		  }
+> 		  if (sym->s_type->t_vararg == 1) /* varargs */
+> 		    fprintf(fprot, ", ...");
+> 		  fprintf(fprot, ") at %s:%d>\n", curr_pos.p_file, sym->s_dpos.p_line);
+> 		  chkglvar(sym);
+> 		}
+> 	}
+> 
+Index: lint1/externs1.h
+===================================================================
+RCS file: /cvs/openbsd/src/usr.bin/xlint/lint1/externs1.h,v
+retrieving revision 1.16
+diff -r1.16 externs1.h
+88a89,93
+>  * cflow
+>  */
+> extern	FILE	*fprot;
+> 
+> /*
+177a183,184
+> extern	void	try_cflow();
+> extern	void	print_type(type_t *tp);
+Index: lint1/main1.c
+===================================================================
+RCS file: /cvs/openbsd/src/usr.bin/xlint/lint1/main1.c,v
+retrieving revision 1.11
+diff -r1.11 main1.c
+96a97,100
+> /* Have the functions prototype */
+> FILE	*fprot;
+> int	cflowflag = 0;
+> 
+104c108
+< 	while ((c = getopt(argc, argv, "abcdefghprstuvyzF")) != -1) {
+---
+> 	while ((c = getopt(argc, argv, "abcdefghprstuvyzFP:")) != -1) {
+115a120,125
+> 		case 'P':
+> 			/* open the prototype file */
+> 			if ((fprot = fopen(optarg, "a")) == NULL)
+> 				err(1, "cannot open '%s'", optarg);
+> 			cflowflag = 1;
+> 						break;
+153a164,165
+> 	if (fprot)
+> 		try_cflow();
+Index: lint2/externs2.h
+===================================================================
+RCS file: /cvs/openbsd/src/usr.bin/xlint/lint2/externs2.h,v
+retrieving revision 1.6
+diff -r1.6 externs2.h
+56a57,61
+>  * cflow
+>  */
+> extern FILE	*ffun_call;
+> 
+> /*
+Index: lint2/main2.c
+===================================================================
+RCS file: /cvs/openbsd/src/usr.bin/xlint/lint2/main2.c,v
+retrieving revision 1.9
+diff -r1.9 main2.c
+84a85,86
+> FILE	*ffun_call;
+> 
+98c100,101
+< 	while ((c = getopt(argc, argv, "hpstxuC:HFl:")) != -1) {
+---
+> 
+> 	while ((c = getopt(argc, argv, "hpstxuC:HFl:P:")) != -1) {
+122a126,129
+> 		case 'P':
+> 			if ((ffun_call = fopen(optarg, "a")) == NULL)
+> 				err(1, "cannot open '%s'", optarg);
+> 			break;
+145c152
+< 
+---
+> 	/* open the function call file */
+152d158
+< 
+172d177
+< 
+Index: lint2/read.c
+===================================================================
+RCS file: /cvs/openbsd/src/usr.bin/xlint/lint2/read.c,v
+retrieving revision 1.11
+diff -r1.11 read.c
+38a39
+> #include <assert.h>
+45d45
+< 
+126d125
+< 
+312d310
+< 	hte->h_used = 1;
+313a312,315
+> 	if (ffun_call)
+> 		fprintf(ffun_call, "c[%s] %s\n", hte->h_name, mkpos(&fcall->f_pos), posp->p_line);
+> 
+> 	hte->h_used = 1;
+409d410
+< 
+414a416,417
+> 	if (ffun_call && posp->p_line)
+> 		fprintf(ffun_call, "d[%s] %s\n", hte->h_name, mkpos(&sym.s_pos), posp->p_line);
+417d419
+< 
+Index: xlint/xlint.c
+===================================================================
+RCS file: /cvs/openbsd/src/usr.bin/xlint/xlint/xlint.c,v
+retrieving revision 1.33
+diff -r1.33 xlint.c
+106a107,112
+> /* needed by cflow prototype */
+> static	char*	c1name;
+> 
+> /* needed by cflow function call */
+> static	char*	c2name;
+> 
+352c358
+< 		c = getopt(argc, argv, "abcefghil:no:prstuvxyzC:D:FHI:L:U:V");
+---
+> 		c = getopt(argc, argv, "abcefghil:no:prstuvxyzC:D:FHI:L:P:Q:U:V");
+462a469,477
+> 		case 'P':
+> 			appcstrg(&l1flags, "-P");
+> 			appcstrg(&l1flags, optarg);
+> 			break;
+> 
+> 		case 'Q':
+> 			appcstrg(&l2flags, "-P");
+> 			appcstrg(&l2flags, optarg);
+> 			break;
+522a538
+> 	int	i;
