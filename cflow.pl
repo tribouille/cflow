@@ -106,17 +106,6 @@ sub printer
     }
 }
 
-sub usage
-{
-    die "cflow.pl file [files]";
-}
-
-our $opt_i;
-getopts("i:");
-print Dumper $opt_i;
-
-usage if ($#ARGV < 0);
-
 my $funcs;
 my $proto = undef;
 
@@ -130,7 +119,7 @@ close $cflow1Handler;
 my ($cflow2Handler, $cflow2File) = File::Temp::mkstemp($cflow2Template);
 close $cflow2Handler;
 
-my $command = "lint -P $cflow1File -Q $cflow2File > /dev/null";
+my $command = "lint -P $cflow1File -Q $cflow2File";
 for (my $i=0; $i <= $#ARGV; ++$i) {
     $command .= " $ARGV[$i]";
 }
