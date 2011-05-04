@@ -96,12 +96,6 @@ sub usage
     die "cflow.pl file [files]";
 }
 
-our $opt_i;
-getopts("i:");
-print Dumper $opt_i;
-
-usage if ($#ARGV < 0);
-
 my $funcs;
 my $proto = undef;
 
@@ -115,17 +109,12 @@ close $cflow1Handler;
 my ($cflow2Handler, $cflow2File) = File::Temp::mkstemp($cflow2Template);
 close $cflow2Handler;
 
-my $command = "lint -P $cflow1File -Q $cflow2File > /dev/null";
+my $command = "lint -P $cflow1File -Q $cflow2File";
 for (my $i=0; $i <= $#ARGV; ++$i) {
     $command .= " $ARGV[$i]";
 }
-    my $pid = fork();
-    if ($pid == 0) {
-	system($command);
-	exit 0;
-    } else {
-	wait();
-    }
+$command .= " > /dev/null";
+die usage if system($command);
 get_proto $cflow1File, \$proto;
 unlink($cflow1File);
 die "Failed to parse this file!" if (!defined($proto));
