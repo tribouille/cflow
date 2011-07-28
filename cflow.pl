@@ -111,9 +111,31 @@ sub usage
     die "cflow.pl file [files]";
 }
 
+sub xexec
+{
+    my $command = shift;
+    my $pid;
+    my $fd;
+    $SIG{PIPE} = 'IGNORE';
+    $command .= "|";
+    unless (defined($pid = open $fd, $command)) {
+	die "cannot fork : $!";
+    }
+     if ($pid) {
+	#opt_v : can show the lint display
+	 while (<$fd>) {
+	     print $_;
+	 }
+	close $fd || warn $!;
+    } else {
+	exec($command);
+	die $!;
+    }
+    return 0;
+}
+
 my $funcs;
 my $proto = undef;
-
 
 my $cflow1Template = "/tmp/cflow.XXXXXX";
 my $cflow2Template = "/tmp/cflow2.XXXXXX";
@@ -128,10 +150,11 @@ my $command = "lint -P $cflow1File -Q $cflow2File";
 for (my $i=0; $i <= $#ARGV; ++$i) {
     $command .= " $ARGV[$i]";
 }
-$command .= " > /dev/null";
-die usage if system($command);
+#$command .= " > /dev/null";
+die usage if xexec($command);
+
 get_proto $cflow1File, \$proto;
-unlink($cflow1File);
+unlink $cflow1File;
 die "Failed to parse this file!" if (!defined($proto));
 
 get_fun_call $cflow2File, \$funcs;
